@@ -13,7 +13,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "test": "node --test conformance/tests/*.test.mjs",
+    "test": "node --test",
     "visual:fixture": "node conformance/scripts/build-visual-fixture.mjs",
     "visual:check": "node conformance/scripts/visual-check.mjs",
     "portable:fixture": "node conformance/scripts/build-portable-fixture.mjs",

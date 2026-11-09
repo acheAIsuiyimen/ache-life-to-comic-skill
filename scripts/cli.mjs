@@ -2,7 +2,7 @@
 import {readFile} from "node:fs/promises";
 import path from "node:path";
 import {atomicWriteJson, ensureDir, readJsonIfExists} from "./io.mjs";
-import {appendEpisode, inspectSeries, inspectVolume} from "./monthly-serial.mjs";
+import {appendEpisode, inspectSeries, inspectVolume, validateMonth} from "./monthly-serial.mjs";
 import {buildContextPack} from "./context-pack.mjs";
 import {planLayout, validateLayoutPlan} from "./layout-plan.mjs";
 import {
@@ -204,17 +204,19 @@ async function main() {
 
   if (command === "append") {
     const raw = await readJson(args.input);
+    const bookId = safeSegment(raw.bookId, "bookId");
     const library = path.resolve(args.library);
     const profilePath = path.join(
       library,
       "books",
-      raw.bookId,
+      bookId,
       "publication-profile.json"
     );
     const profile = await readJsonIfExists(profilePath, {});
     const plan = raw.plan ?? planEntry(raw, profile);
     print(await appendEpisode(library, {
       ...raw,
+      bookId,
       route: plan.route,
       style: raw.style ?? profile.style ?? null,
       palette: raw.palette ?? plan.layout?.theme?.colors ?? profile.palette ?? null,
@@ -226,9 +228,10 @@ async function main() {
   if (command === "inspect") {
     const library = path.resolve(args.library);
     const bookId = safeSegment(args["book-id"], "bookId");
+    const month = Object.hasOwn(args, "month") ? validateMonth(args.month) : null;
     const series = await inspectSeries(library, bookId);
-    const volume = args.month
-      ? await inspectVolume(library, bookId, args.month)
+    const volume = month
+      ? await inspectVolume(library, bookId, month)
       : null;
     print({series, volume});
     return;
