@@ -21,7 +21,14 @@ function escapeHtml(value = "") {
 function monthKey(value) {
   const match = String(value ?? "").match(/^(\d{4})-(\d{2})/u);
   if (!match) throw new Error(`Invalid ISO date: ${value}`);
-  return `${match[1]}-${match[2]}`;
+  return validateMonth(`${match[1]}-${match[2]}`);
+}
+
+export function validateMonth(value) {
+  if (typeof value !== "string" || !/^\d{4}-(0[1-9]|1[0-2])$/u.test(value)) {
+    throw new Error(`Invalid month: ${value}; expected YYYY-MM`);
+  }
+  return value;
 }
 
 function safeSegment(value, label) {
@@ -61,11 +68,8 @@ function bookPaths(root, bookId) {
 
 function volumePaths(root, bookId, month) {
   const base = path.join(
-    root,
-    "books",
-    bookId,
-    "monthly-volumes",
-    month
+    bookPaths(root, bookId).monthlyVolumes,
+    validateMonth(month)
   );
   return {
     base,
@@ -105,7 +109,13 @@ async function initialize(root, bookId, title) {
 
 async function acquireLock(root, bookId, options = {}) {
   const {waitMs = 10_000, leaseMs = 15_000, pollMs = 20} = options;
-  const locations = await initialize(root, bookId, "我的漫画人生");
+  const locations = bookPaths(root, bookId);
+  // Only prepare lock infrastructure here. Book files must be initialized by
+  // the lock owner, otherwise first-time writers can race on Windows rename.
+  await Promise.all([
+    ensureDir(locations.locks),
+    ensureDir(locations.quarantine)
+  ]);
   const lockDirectory = path.join(
     locations.locks,
     `${safeSegment(bookId, "bookId")}.lock`
@@ -310,7 +320,6 @@ export async function appendEpisode(root, rawEpisode) {
   safeSegment(episode.bookId, "bookId");
   safeSegment(episode.episodeId, "episodeId");
 
-  await initialize(root, episode.bookId, episode.bookTitle);
   const lock = await acquireLock(root, episode.bookId);
   let lockHeld = true;
   try {
